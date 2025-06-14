@@ -231,6 +231,256 @@ class ResultsAnalyzer
     end
   end
 
+  def speed_vs_quality_scatter
+    puts Rainbow("⚡🎯 SPEED vs QUALITY SCATTER PLOT").bright.cyan
+    puts "=" * 60
+    
+    # Get data ranges
+    speeds = @results.map { |r| r[:evaluation][:records_per_second].to_f }
+    qualities = @results.map { |r| r[:evaluation][:average_llm_judgement].to_f }
+    
+    max_speed = speeds.max
+    min_speed = speeds.min
+    max_quality = qualities.max
+    min_quality = qualities.min
+    
+    # Create 2D plot area
+    plot_height = 10
+    plot_width = 40
+    
+    # Create a grid to place models
+    grid = Array.new(plot_height) { Array.new(plot_width, "·") }
+    
+    # Place each model on the grid
+    @results.each do |result|
+      eval = result[:evaluation]
+      speed = eval[:records_per_second].to_f
+      quality = eval[:average_llm_judgement].to_f
+      
+      # Convert to grid coordinates
+      x = ((speed - min_speed) / (max_speed - min_speed) * (plot_width - 1)).round
+      y = ((quality - min_quality) / (max_quality - min_quality) * (plot_height - 1)).round
+      
+      # Get model symbol
+      model_name = result[:model].to_s
+      symbol = case model_name
+               when /claude-sonnet/ then Rainbow("S").green
+               when /claude-haiku/ then Rainbow("H").yellow  
+               when /claude-2/ then Rainbow("2").red
+               when /gpt/ then Rainbow("G").blue
+               when /o3/ then Rainbow("3").magenta
+               when /o4/ then Rainbow("4").cyan
+               else Rainbow("?").white
+               end
+      
+      grid[y][x] = symbol
+    end
+    
+    # Display the grid
+    puts "Quality │"
+    (0...plot_height).reverse_each do |y|
+      quality_val = min_quality + (y / (plot_height - 1).to_f) * (max_quality - min_quality)
+      printf "%7.2f │", quality_val
+      
+      (0...plot_width).each do |x|
+        print grid[y][x]
+      end
+      puts
+    end
+    
+    printf "%7s └", ""
+    puts "─" * plot_width
+    printf "%7s  ", ""
+    (0..4).each { |i| printf "%8.2f", min_speed + i * (max_speed - min_speed) / 4 }
+    puts
+    printf "%7s  ", ""
+    puts "Speed (records/sec)"
+    puts
+    
+    # Show actual model positions
+    puts "Models:"
+    @results.each do |result|
+      eval = result[:evaluation]
+      model = result[:model].to_s[0..20]
+      speed = eval[:records_per_second].to_f
+      quality = eval[:average_llm_judgement].to_f
+      
+      symbol = case result[:model].to_s
+               when /claude-sonnet/ then Rainbow("S").green
+               when /claude-haiku/ then Rainbow("H").yellow  
+               when /claude-2/ then Rainbow("2").red
+               when /gpt/ then Rainbow("G").blue
+               when /o3/ then Rainbow("3").magenta
+               when /o4/ then Rainbow("4").cyan
+               else Rainbow("?").white
+               end
+      
+      puts "  #{symbol} #{model.ljust(20)} Speed: #{speed.round(2)}/s Quality: #{quality.round(2)}"
+    end
+    puts
+  end
+
+  def completeness_vs_accuracy_scatter
+    puts Rainbow("📊✅ COMPLETENESS vs ACCURACY SCATTER PLOT").bright.cyan
+    puts "=" * 60
+    
+    # Get data ranges  
+    completenesses = @results.map { |r| r[:evaluation][:parsed_percentage].to_f }
+    accuracies = @results.map { |r| r[:evaluation][:valid_record_percentage].to_f }
+    
+    max_completeness = completenesses.max
+    min_completeness = completenesses.min
+    max_accuracy = accuracies.max
+    min_accuracy = accuracies.min
+    
+    # Create 2D plot area
+    plot_height = 10
+    plot_width = 40
+    
+    # Create a grid to place models
+    grid = Array.new(plot_height) { Array.new(plot_width, "·") }
+    
+    # Place each model on the grid
+    @results.each do |result|
+      eval = result[:evaluation]
+      completeness = eval[:parsed_percentage].to_f
+      accuracy = eval[:valid_record_percentage].to_f
+      
+      # Skip models with 0 values that would cause division by zero
+      next if max_completeness == min_completeness || max_accuracy == min_accuracy
+      
+      # Convert to grid coordinates
+      x = ((completeness - min_completeness) / (max_completeness - min_completeness) * (plot_width - 1)).round
+      y = ((accuracy - min_accuracy) / (max_accuracy - min_accuracy) * (plot_height - 1)).round
+      
+      # Get model symbol
+      model_name = result[:model].to_s
+      symbol = case model_name
+               when /claude-sonnet/ then Rainbow("S").green
+               when /claude-haiku/ then Rainbow("H").yellow  
+               when /claude-2/ then Rainbow("2").red
+               when /gpt/ then Rainbow("G").blue
+               when /o3/ then Rainbow("3").magenta
+               when /o4/ then Rainbow("4").cyan
+               else Rainbow("?").white
+               end
+      
+      # Handle overlapping markers by combining them
+      if grid[y][x] != "·"
+        # Already has a marker, combine them
+        existing = grid[y][x]
+        if existing.respond_to?(:uncolorize)
+          existing_char = existing.uncolorize
+        else
+          existing_char = existing.to_s
+        end
+        
+        new_char = case model_name
+                   when /claude-sonnet/ then "S"
+                   when /claude-haiku/ then "H"
+                   when /claude-2/ then "2"
+                   when /gpt/ then "G"
+                   when /o3/ then "3"
+                   when /o4/ then "4"
+                   else "?"
+                   end
+        
+        # Create combined marker with mixed colors
+        combined = existing_char + new_char
+        grid[y][x] = Rainbow(combined).bright
+      else
+        grid[y][x] = symbol
+      end
+    end
+    
+    # Display the grid
+    puts "Accuracy │"
+    (0...plot_height).reverse_each do |y|
+      accuracy_val = min_accuracy + (y / (plot_height - 1).to_f) * (max_accuracy - min_accuracy)
+      printf "%8.1f%% │", accuracy_val
+      
+      (0...plot_width).each do |x|
+        print grid[y][x]
+      end
+      puts
+    end
+    
+    printf "%8s └", ""
+    puts "─" * plot_width
+    printf "%8s  ", ""
+    (0..4).each { |i| printf "%8.1f%%", min_completeness + i * (max_completeness - min_completeness) / 4 }
+    puts
+    printf "%8s  ", ""
+    puts "Completeness (% records parsed)"
+    puts
+    
+    # Show actual model positions
+    puts "Models:"
+    @results.each do |result|
+      eval = result[:evaluation]
+      model = result[:model].to_s[0..20]
+      completeness = eval[:parsed_percentage].to_f
+      accuracy = eval[:valid_record_percentage].to_f
+      
+      symbol = case result[:model].to_s
+               when /claude-sonnet/ then Rainbow("S").green
+               when /claude-haiku/ then Rainbow("H").yellow  
+               when /claude-2/ then Rainbow("2").red
+               when /gpt/ then Rainbow("G").blue
+               when /o3/ then Rainbow("3").magenta
+               when /o4/ then Rainbow("4").cyan
+               else Rainbow("?").white
+               end
+      
+      puts "  #{symbol} #{model.ljust(20)} Complete: #{completeness.round(1)}% Accuracy: #{accuracy.round(1)}%"
+    end
+    puts
+  end
+
+  def performance_matrix
+    puts Rainbow("📈 PERFORMANCE MATRIX").bright.cyan
+    puts "=" * 80
+    
+    # Create a matrix showing trade-offs
+    metrics = %w[Quality Speed Accuracy Complete]
+    models = @results.map { |r| r[:model].to_s[0..15] }
+    
+    printf "%-16s", "MODEL"
+    metrics.each { |m| printf " %-8s", m }
+    puts " RANK"
+    puts "-" * 80
+    
+    @results.each_with_index do |result, idx|
+      eval = result[:evaluation]
+      model = result[:model].to_s[0..15]
+      
+      quality = eval[:average_llm_judgement].to_f
+      speed = eval[:records_per_second].to_f
+      accuracy = eval[:valid_record_percentage].to_f
+      completeness = eval[:parsed_percentage].to_f
+      
+      # Normalize to 0-10 scale for visual consistency
+      quality_norm = (quality / 3.0 * 10).round(1)
+      speed_norm = (speed / @results.map { |r| r[:evaluation][:records_per_second].to_f }.max * 10).round(1)
+      accuracy_norm = (accuracy / 10).round(1)
+      completeness_norm = (completeness / 10).round(1)
+      
+      # Calculate overall rank (higher is better)
+      overall_score = quality_norm + speed_norm + accuracy_norm + completeness_norm
+      
+      printf "%-16s", model
+      printf " %8.1f", quality_norm
+      printf " %8.1f", speed_norm  
+      printf " %8.1f", accuracy_norm
+      printf " %8.1f", completeness_norm
+      printf " %4.1f", overall_score
+      puts
+    end
+    puts
+    puts "Scale: 0-10 (higher is better)"
+    puts
+  end
+
   def run_analysis
     total_runs = @all_results.length
     unique_models = @all_results.map { |r| r[:model] }.uniq.length
@@ -241,6 +491,9 @@ class ResultsAnalyzer
     summary_table
     speed_analysis
     quality_analysis
+    speed_vs_quality_scatter
+    completeness_vs_accuracy_scatter
+    performance_matrix
     model_evolution if @mode == :all
     detailed_metrics
     export_csv
