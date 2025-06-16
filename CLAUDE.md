@@ -20,3 +20,4 @@ This is a simple, home-grown evals POC written in Ruby
 
 - Avoid fancy meta-programming
 - Use conventional-commit messages
+- Before committing run linting via Standard and accept all autocorrections
